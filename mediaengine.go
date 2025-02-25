@@ -246,7 +246,10 @@ func (m *MediaEngine) RegisterDefaultCodecs() error {
 // addCodec will append codec if it not exists.
 func (m *MediaEngine) addCodec(codecs []RTPCodecParameters, codec RTPCodecParameters) []RTPCodecParameters {
 	for _, c := range codecs {
-		if c.MimeType == codec.MimeType && c.PayloadType == codec.PayloadType {
+		if c.MimeType == codec.MimeType &&
+			fmtp.ClockRateEqual(c.MimeType, c.ClockRate, codec.ClockRate) &&
+			fmtp.ChannelsEqual(c.MimeType, c.Channels, codec.Channels) &&
+			c.PayloadType == codec.PayloadType {
 			return codecs
 		}
 	}
@@ -256,7 +259,6 @@ func (m *MediaEngine) addCodec(codecs []RTPCodecParameters, codec RTPCodecParame
 
 // RegisterCodec adds codec to the MediaEngine
 // These are the list of codecs supported by this PeerConnection.
-// RegisterCodec is not safe for concurrent use.
 func (m *MediaEngine) RegisterCodec(codec RTPCodecParameters, typ RTPCodecType) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -460,7 +462,12 @@ func (m *MediaEngine) matchRemoteCodec(
 		codecs = m.audioCodecs
 	}
 
-	remoteFmtp := fmtp.Parse(remoteCodec.RTPCodecCapability.MimeType, remoteCodec.RTPCodecCapability.SDPFmtpLine)
+	remoteFmtp := fmtp.Parse(
+		remoteCodec.RTPCodecCapability.MimeType,
+		remoteCodec.RTPCodecCapability.ClockRate,
+		remoteCodec.RTPCodecCapability.Channels,
+		remoteCodec.RTPCodecCapability.SDPFmtpLine)
+
 	if apt, hasApt := remoteFmtp.Parameter("apt"); hasApt { //nolint:nestif
 		payloadType, err := strconv.ParseUint(apt, 10, 8)
 		if err != nil {
